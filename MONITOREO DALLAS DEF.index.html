@@ -1,0 +1,156 @@
+	<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Monitoreo Dallas - ESP32</title>
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #0f172a;
+      color: #f8fafc;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+    h1 {
+      margin-bottom: 10px;
+      text-align: center;
+    }
+    #estado-mqtt {
+      font-size: 0.9rem;
+      padding: 6px 14px;
+      border-radius: 20px;
+      background-color: #334155;
+      margin-bottom: 30px;
+    }
+    .conectado { background-color: #166534 !important; color: #bbf7d0; }
+    .desconectado { background-color: #991b1b !important; color: #fecaca; }
+
+    .contenedor {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 20px;
+      width: 100%;
+      max-width: 800px;
+    }
+    .tarjeta {
+      background-color: #1e293b;
+      border-radius: 16px;
+      padding: 25px;
+      text-align: center;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+      border: 1px solid #334155;
+    }
+    .tarjeta.destacada {
+      border-color: #38bdf8;
+    }
+    .titulo {
+      font-size: 1rem;
+      color: #94a3b8;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .valor {
+      font-size: 3rem;
+      font-weight: bold;
+      color: #38bdf8;
+    }
+    #estado-rango {
+      margin-top: 25px;
+      font-size: 1.1rem;
+      font-weight: bold;
+      padding: 10px 24px;
+      border-radius: 10px;
+      background-color: #334155;
+    }
+    .en-rango { background-color: #15803d !important; color: #ffffff; }
+    .fuera-rango { background-color: #b45309 !important; color: #ffffff; }
+  </style>
+</head>
+<body>
+
+  <h1>Monitoreo de Temperatura</h1>
+  <div id="estado-mqtt">Conectando al broker...</div>
+
+  <div class="contenedor">
+    <div class="tarjeta">
+      <div class="titulo">Sensor 1</div>
+      <div class="valor" id="t1">-- °C</div>
+    </div>
+
+    <div class="tarjeta">
+      <div class="titulo">Sensor 2</div>
+      <div class="valor" id="t2">-- °C</div>
+    </div>
+
+    <div class="tarjeta destacada">
+      <div class="titulo">Promedio</div>
+      <div class="valor" id="prom">-- °C</div>
+    </div>
+  </div>
+
+  <div id="estado-rango">Esperando datos...</div>
+
+  <script>
+    const BROKER_URL = "wss://broker.emqx.io:8084/mqtt";
+    const TOPIC = "MONITOREO DALLAS";
+
+    const estadoMqtt = document.getElementById("estado-mqtt");
+    const elT1 = document.getElementById("t1");
+    const elT2 = document.getElementById("t2");
+    const elProm = document.getElementById("prom");
+    const elRango = document.getElementById("estado-rango");
+
+    const client = mqtt.connect(BROKER_URL, {
+      clientId: "WEB_DALLAS_" + Math.random().toString(16).substring(2, 8),
+      clean: true,
+      reconnectPeriod: 3000
+    });
+
+    client.on("connect", () => {
+      estadoMqtt.textContent = "Conectado a EMQX";
+      estadoMqtt.className = "conectado";
+      client.subscribe(TOPIC, (err) => {
+        if (err) {
+          estadoMqtt.textContent = "Error al suscribirse";
+          estadoMqtt.className = "desconectado";
+        }
+      });
+    });
+
+    client.on("message", (topic, message) => {
+      try {
+        const data = JSON.parse(message.toString());
+
+        elT1.textContent = data.t1.toFixed(1) + " °C";
+        elT2.textContent = data.t2.toFixed(1) + " °C";
+        elProm.textContent = data.prom.toFixed(1) + " °C";
+
+        if (data.rango) {
+          elRango.textContent = "Promedio en rango (20°C - 30°C)";
+          elRango.className = "en-rango";
+        } else {
+          elRango.textContent = "Promedio fuera de rango";
+          elRango.className = "fuera-rango";
+        }
+      } catch (e) {
+        console.error("Error al leer JSON:", e);
+      }
+    });
+
+    client.on("offline", () => {
+      estadoMqtt.textContent = "Desconectado - Reintentando...";
+      estadoMqtt.className = "desconectado";
+    });
+  </script>
+
+</body>
+</html>
